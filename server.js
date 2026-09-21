@@ -4,13 +4,13 @@ const compression=require("compression");
 const rateLimit=require("express-rate-limit");
 const cookieSession=require("cookie-session");
 const bcrypt=require("bcryptjs");
-const OpenAI=require("openai");
 
 const app=express();
 const PORT=process.env.PORT||10000;
 const AI_NAME="阮阮";
-const OPENAI_MODEL=process.env.OPENAI_MODEL||"gpt-5.6";
-const openai=process.env.OPENAI_API_KEY?new OpenAI({apiKey:process.env.OPENAI_API_KEY}):null;
+const GEMINI_MODEL=process.env.GEMINI_MODEL||"gemini-3.5-flash-lite";
+const {GoogleGenAI}=require("@google/genai");
+const gemini=process.env.GEMINI_API_KEY?new GoogleGenAI({apiKey:process.env.GEMINI_API_KEY}):null;
 const users=new Map(), conversations=new Map(), memories=new Map();
 
 app.set("trust proxy",1);
@@ -31,7 +31,7 @@ function currentUser(req){return req.session?.userId?users.get(req.session.userI
 function auth(req,res,next){const u=currentUser(req);if(!u)return res.status(401).json({error:"Bạn chưa đăng nhập."});req.user=u;next()}
 function pub(u){return {id:u.id,username:u.username,email:u.email,createdAt:u.createdAt}}
 
-app.get("/api/health",(req,res)=>res.json({ok:true,app:"YamadaNihon AI",assistant:AI_NAME,model:OPENAI_MODEL,configured:!!openai}));
+app.get("/api/health",(req,res)=>res.json({ok:true,app:"YamadaNihon AI",assistant:AI_NAME,model:GEMINI_MODEL,configured:!!gemini}));
 
 app.post("/api/auth/register",async(req,res)=>{
   const {username,email,password}=req.body||{};
@@ -80,7 +80,7 @@ app.delete("/api/memories/:id",auth,(req,res)=>{
 app.delete("/api/memories",auth,(req,res)=>{memories.set(req.user.id,[]);res.json({ok:true})});
 
 app.post("/api/chat",auth,async(req,res)=>{
-  if(!openai)return res.status(503).json({error:"Backend chưa có OPENAI_API_KEY trên Render."});
+  if(!gemini)return res.status(503).json({error:"Backend chưa có GEMINI_API_KEY trên Render."});
   const c=(conversations.get(req.user.id)||[]).find(x=>x.id===req.body?.conversationId);
   const text=String(req.body?.message||"").trim();
   if(!c)return res.status(404).json({error:"Không tìm thấy cuộc trò chuyện."});
@@ -92,12 +92,20 @@ app.post("/api/chat",auth,async(req,res)=>{
   const memoryText=mem.length?"\nThông tin người dùng đã lưu:\n"+mem.map(m=>"- "+m.content).join("\n"):"";
   const instructions=`Bạn là ${AI_NAME} (阮阮), trợ lý AI riêng của YamadaNihon AI. Không tự giới thiệu là ChatGPT. Nếu được hỏi tên, hãy nói tên bạn là 阮阮. Trả lời tự nhiên, hữu ích, phù hợp ngôn ngữ của người dùng.${memoryText}`;
   try{
-    const r=await openai.responses.create({
-      model:OPENAI_MODEL,
-      instructions,
-      input:c.messages.slice(-20).map(m=>({role:m.role,content:m.content}))
+    const contents=c.messages.slice(-20).map(m=>({
+      role:m.role==="assistant"?"model":"user",
+      parts:[{text:m.content}]
+    }));
+    const r=await gemini.models.generateContent({
+      model:GEMINI_MODEL,
+      contents,
+      config:{
+        systemInstruction:instructions,
+        maxOutputTokens:1200,
+        thinkingConfig:{thinkingLevel:"MINIMAL"}
+      }
     });
-    const answer=r.output_text||"Mình chưa tạo được câu trả lời.";
+    const answer=r.text||"Mình chưa tạo được câu trả lời.";
     c.messages.push({role:"assistant",content:answer,createdAt:Date.now()});c.updatedAt=Date.now();
     res.json({answer,conversation:{id:c.id,title:c.title,updatedAt:c.updatedAt}});
   }catch(err){
