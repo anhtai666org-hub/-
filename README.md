@@ -1,14 +1,11 @@
-# YamadaNihon AI — 阮阮
+# YamadaNihon AI — Media Upgrade
 
-Responsive AI web app with private accounts, chat history, memory, settings and an OpenAI backend.
+- Chat scroll độc lập, không kẹt.
+- Typing dots.
+- Gửi ảnh/video.
+- Gemini nhận ảnh.
+- Click ảnh fullscreen.
+- Tải ảnh/video.
+- Nút tạo ảnh/video đã có UI; API generation sẽ nối ở bước tiếp theo.
 
-## Render
-Build: `npm install`
-Start: `npm start`
-Environment:
-- `OPENAI_API_KEY` — set in Render only
-- `OPENAI_MODEL` — defaults to `gpt-5.6`
-- `SESSION_SECRET` — generate a strong random value
-
-## Storage note
-This starter uses in-memory Maps for V1. Accounts, chats and memories reset when the service restarts. For persistent multi-user production use, replace the Maps with PostgreSQL.
+Render env: GEMINI_API_KEY, GEMINI_MODEL (optional), SESSION_SECRET (recommended).
